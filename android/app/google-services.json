@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "370175905073",
+    "project_id": "iais-web",
+    "storage_bucket": "iais-web.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:370175905073:android:959b1308e3e85c9957b410",
+        "android_client_info": {
+          "package_name": "com.rsn.iais_web"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "370175905073-8cmmmp24cau4ok6ufupnuonle3tbbm3u.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyADBniXoYPTddQ8Z4wWj-xD-jcPoM_48HQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "370175905073-8cmmmp24cau4ok6ufupnuonle3tbbm3u.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
