@@ -10,6 +10,7 @@ import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.DownloadManager;
+import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
@@ -41,6 +42,8 @@ import android.widget.Button;
 import android.widget.RelativeLayout;
 import android.widget.Toast;
 
+import com.android.volley.Response;
+import com.android.volley.VolleyError;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
@@ -48,14 +51,21 @@ import com.google.android.gms.tasks.Task;
 import com.google.firebase.iid.FirebaseInstanceId;
 import com.google.firebase.iid.InstanceIdResult;
 import com.google.firebase.messaging.FirebaseMessaging;
+import com.rsn.iais_web.Util.FileUtils;
+import com.rsn.iais_web.Util.JavaScriptInterface;
 import com.rsn.iais_web.Util.UserProp;
 import com.rsn.iais_web.Util.Utility;
+import com.rsn.iais_web.api.ServerApi;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -78,15 +88,72 @@ public class MainActivity extends AppCompatActivity {
     private RelativeLayout mOfflineLayout;
     private Button mTryButton;
 
+    private boolean fromNotification;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        Intent intent = getIntent();
+        fromNotification = intent.getBooleanExtra("fromNotification",false);
+        Log.e("arsen", "mainActivity "+fromNotification);
+
 
         // Subscribe topic
         Log.d("PAC", "Subscribe FCM topic");
         Log.e("arsen", "onCreate: FCM token "+ UserProp.getFcmToken(this));
+
+        if (UserProp.getFcmToken(this) != null){
+            Log.e("arsen", "onCreate: ada token");
+            ServerApi.getUserDataByToken(
+                    UserProp.getFcmToken(this),
+                    this,
+                    new Response.Listener<JSONObject>() {
+                        @Override
+                        public void onResponse(JSONObject response) {
+                            Log.e("arsen", "LoginActivity getDataToken onResponse:" +
+                                    "\n\t" + response.toString() + "\n_");
+                            try {
+                                JSONObject data = response.getJSONObject("data");
+                                String ver_app = data.getString("versi_app");
+                                Log.e("arsen", "ver app dari server: "+ver_app);
+                                if (!ver_app.equals(BuildConfig.VERSION_NAME)) {
+                                    //if not equal then update versi app on server
+                                    Utility.updateVersiApp(UserProp.getFcmToken(MainActivity.this),BuildConfig.VERSION_NAME,MainActivity.this);
+                                }else {
+                                    Log.e("arsen", "else, berarti versi app di server dan lokal sama");
+                                }
+                            } catch (JSONException e) {
+                                Log.e("Sales", "onResponse: fail try catch");
+                            }
+                        }
+                    },
+                    new Response.ErrorListener() {
+                        @Override
+                        public void onErrorResponse(VolleyError error) {
+                            Log.e("arsen", "LoginActivity getDataToken onErrorResponse:" +
+                                    "\n\t" + error.toString() + "\n_");
+                            if (error.networkResponse != null) {
+                                try {
+                                    String body = new String(error.networkResponse.data,"UTF-8");
+                                    JSONObject jsonObj = new JSONObject(body);
+                                    Log.d("arsen", "LoginActivity insertFcmToken onErrorResponse: " + error.toString() +
+                                            "\n\theader status: " + error.networkResponse.statusCode +
+                                            "\n\tbody: " + body +
+                                            "\n\tbody error: " + jsonObj.getString("error") +
+                                            "\n\tbody message: " + jsonObj.getString("message")
+                                    );
+                                } catch (UnsupportedEncodingException e) {
+                                    e.printStackTrace();
+                                } catch (JSONException e) {
+                                    e.printStackTrace();
+                                }
+                            }
+                        }
+                    }
+            );
+        }
 
         FirebaseMessaging.getInstance()
                 .subscribeToTopic("blast")
@@ -138,7 +205,6 @@ public class MainActivity extends AppCompatActivity {
         });
 
         mWebView.getSettings().setJavaScriptEnabled(true);
-        mWebView.addJavascriptInterface(new JavaScriptInterface(this), "Android");
         mWebView.getSettings().setPluginState(WebSettings.PluginState.OFF);
         mWebView.getSettings().setLoadWithOverviewMode(true);
         mWebView.getSettings().setAppCacheEnabled(true);
@@ -153,38 +219,13 @@ public class MainActivity extends AppCompatActivity {
         //mWebView.setWebViewClient(new CustomWebViewClient());
         mWebView.setWebViewClient(new PolytronWebViewClient(MainActivity.this));
         //mWebView.setWebViewClient(new WriteHandlingWebViewClient(mWebView));
-
+        mWebView.addJavascriptInterface(new JavaScriptInterface(this), "Android");
         mWebView.setWebChromeClient(new ChromeClient());
 
         // Handle downloading
         mWebView.setDownloadListener(new WebViewDownloadListener());
 
         openWebSource();
-    }
-
-    public class JavaScriptInterface {
-        Context mContext;
-
-        // Instantiate the interface and set the context
-        JavaScriptInterface(Context c) {
-            mContext = c;
-        }
-
-        // using Javascript to call the finish activity
-        public void closeMyActivity() {
-            finish();
-        }
-        @JavascriptInterface
-        public void scanBarcode() { //this
-            Log.d("MainActivity","scanBarcode()");
-//            IntentIntegrator integrator = new IntentIntegrator(MainActivity.this);
-//            integrator.setDesiredBarcodeFormats(IntentIntegrator.ALL_CODE_TYPES);
-//            integrator.setPrompt("Scan");
-//            integrator.setCameraId(0);
-//            integrator.setBeepEnabled(false);
-//            integrator.setBarcodeImageEnabled(false);
-//            integrator.initiateScan();
-        }
     }
 
     @Override
@@ -215,85 +256,44 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         //super.onActivityResult(requestCode, resultCode, data);
-        /*
-        if (data == null) {
-            AppLogger.writeVerbose("onActivityResult intent data == NULL");
-        } else {
-        */
-        //}
-//        IntentResult resultQr = IntentIntegrator.parseActivityResult(requestCode, resultCode, data);
-//        if (resultQr != null) {
-//            if (resultQr.getContents() == null) {
-//                Log.d("MainActivity", "Cancelled scan");
-//                Toast.makeText(this, "Cancelled", Toast.LENGTH_LONG).show();
-//            } else {
-//                Log.d("MainActivity", "Scanned");
-//                Toast.makeText(this, "Scanned: " + resultQr.getContents(), Toast.LENGTH_LONG).show();
-//                mWebView.evaluateJavascript("javascript:barcodeResult('"+resultQr.getContents()+"');", null);
+        //AppLogger.writeDebug("onActivityResult");
+//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+//            if (requestCode != FILECHOOSER_RESULTCODE || mFilePathCallback == null) {
+//                super.onActivityResult(requestCode, resultCode, data);
+//                return;
 //            }
+//
+//            Uri[] results = null;
+//            // Check that the response is a good one
+//            if (resultCode == Activity.RESULT_OK) {
+//                //AppLogger.writeDebug("onActivityResult Activity.RESULT_OK");
+//                if (data == null) {
+//                    if (mCameraPhotoPath != null) {
+////                        setImageOrietation(Uri.parse(mCameraPhotoPath));
+//                        results = new Uri[]{Uri.parse(mCameraPhotoPath)};
+//                    }
+//                } else {
+//                    //AppLogger.writeDebug("onActivityResult data != null");
+//                    String dataString = data.getDataString();
+//                    String converted = FileUtils.getRealPath(MainActivity.this, Uri.parse(dataString));
+//                    Log.e("arsen", "data str: "+ converted);
+//                    if (dataString != null) {
+//                        results = new Uri[]{Uri.parse(dataString)};
+//                    }
+//                }
+//            }
+//
+//            Log.e("arsen", "onActivityResult: asdasd "+results[0].toString());
+//
+//            mFilePathCallback.onReceiveValue(results);
+//            mFilePathCallback = null;
 //        }
 
-        //AppLogger.writeDebug("onActivityResult");
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            if (requestCode != FILECHOOSER_RESULTCODE || mFilePathCallback == null) {
-                super.onActivityResult(requestCode, resultCode, data);
-                return;
-            }
-
-            Uri[] results = null;
-            // Check that the response is a good one
-            if (resultCode == Activity.RESULT_OK) {
-                //AppLogger.writeDebug("onActivityResult Activity.RESULT_OK");
-                if (data == null) {
-//                    AppLogger.writeDebug("onActivityResult data == null");
-                    /*
-                    File f = new File(FileUtils.getRealPath(MainActivity.this, Uri.parse(mCameraPhotoPath)));
-                    if (f != null) {
-                        AppLogger.writeVerbose("onActivityResult 05 f != null. f length = " + f.length());
-                    }
-                    */
-
-                    if (mCameraPhotoPath != null) {
-                        setImageOrietation(Uri.parse(mCameraPhotoPath));
-                        results = new Uri[]{Uri.parse(mCameraPhotoPath)};
-                    }
-                } else {
-                    //AppLogger.writeDebug("onActivityResult data != null");
-                    String dataString = data.getDataString();
-                    if (dataString != null) {
-                        results = new Uri[]{Uri.parse(dataString)};
-                    }
-                }
-            }
-
-            mFilePathCallback.onReceiveValue(results);
+        if (requestCode == FILECHOOSER_RESULTCODE) {
+            if (mFilePathCallback == null) return;
+            Log.e("arsen", "onActivityResult: "+data.getDataString());
+            mFilePathCallback.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultCode, data));
             mFilePathCallback = null;
-        } else if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.KITKAT) {
-            if (requestCode != FILECHOOSER_RESULTCODE || mUploadMessage == null) {
-                super.onActivityResult(requestCode, resultCode, data);
-                return;
-            }
-
-            if (requestCode == FILECHOOSER_RESULTCODE) {
-                if (null == this.mUploadMessage) {
-                    return;
-                }
-                Uri result = null;
-                try {
-                    if (resultCode != RESULT_OK) {
-                        result = null;
-                    } else {
-                        // retrieve from the private variable if the intent is null
-                        result = data == null ? mCapturedImageURI : data.getData();
-                    }
-                } catch (Exception e) {
-                    //Toast.makeText(getApplicationContext(), "activity :" + e,
-                    //        Toast.LENGTH_LONG).show();
-                }
-
-                mUploadMessage.onReceiveValue(result);
-                mUploadMessage = null;
-            }
         }
     }
 
@@ -314,7 +314,17 @@ public class MainActivity extends AppCompatActivity {
             mOfflineLayout.setVisibility(View.VISIBLE);
         } else {
             mOfflineLayout.setVisibility(View.GONE);
-            mWebView.loadUrl(END_POINT);
+            String final_url = "";
+            if (fromNotification){
+                String email = UserProp.getUserId(this);
+                if (email != null){
+                    Log.e("arsen", "openWebSource: "+email);
+                    final_url = END_POINT + "members/" + email + "/notification/invitation";
+                }else {
+                    final_url = END_POINT;
+                }
+            }else final_url = END_POINT;
+            mWebView.loadUrl(final_url);
 
             //mWebView.loadUrl("https://pfs.staging.polytron.angkasa.id/store");
             //mWebView.loadUrl("https://pfs.polytron.co.id");
@@ -324,21 +334,25 @@ public class MainActivity extends AppCompatActivity {
     private File createImageFile() throws IOException {
         String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
         String imageFileName = "psf_" + timeStamp;
-        File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
-        //File storageDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
-
-        File imageFile = new File(storageDir + imageFileName + ".jpg");
-        /*
-        File imageFile = File.createTempFile(
-                imageFileName,  // prefix
-                ".jpg",         // suffix
-                storageDir      // directory
+//        File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+        File storageDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
+        return File.createTempFile(
+                imageFileName,  /* prefix */
+                ".jpg",         /* suffix */
+                storageDir      /* directory */
         );
-        */
-
-        mCameraPhotoPath = "file:" + imageFile.getAbsolutePath();
-
-        return imageFile;
+//        File imageFile = new File(storageDir + imageFileName + ".jpg");
+//        /*
+//        File imageFile = File.createTempFile(
+//                imageFileName,  // prefix
+//                ".jpg",         // suffix
+//                storageDir      // directory
+//        );
+//        */
+//
+//        mCameraPhotoPath = "file:" + imageFile.getAbsolutePath();
+//
+//        return imageFile;
     }
 
     /**
@@ -390,8 +404,9 @@ public class MainActivity extends AppCompatActivity {
 
         // For Android 5.0
         //@Override
-        public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> filePath, WebChromeClient.FileChooserParams fileChooserParams) {
-            // Double check that we don't have any existing callbacks
+//        public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> filePath, WebChromeClient.FileChooserParams fileChooserParams) {
+//            // Double check that we don't have any existing callbacks
+//            Log.e("arsen", "onShowFileChooser: ");
 //            if (mFilePathCallback != null) {
 //                mFilePathCallback.onReceiveValue(null);
 //            }
@@ -406,23 +421,28 @@ public class MainActivity extends AppCompatActivity {
 //                    photoFile = createImageFile();
 //                } catch (IOException ex) {
 //                    // Error occurred while creating the File
+//                    Log.e("arsen", "Unable to create Image File", ex);
 //                }
 //
 //                // Continue only if the File was successfully created
 //                if (photoFile != null) {
-//                    mCameraPhotoPath = "file:" + photoFile.getAbsolutePath();
-//
-//                    Uri photoURI = FileProvider.getUriForFile(
-//                            MainActivity.this,
-//                            "com.hit.pfs.provider",
-//                            photoFile);
-//
-//                    takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
+////                    mCameraPhotoPath = "file:" + photoFile.getAbsolutePath();
+////
+////                    Uri photoURI = FileProvider.getUriForFile(
+////                            MainActivity.this,
+////                            "com.rsn.iais_web.provider",
+////                            photoFile);
+////
+////                    takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
 //                    //takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, FileProvider.getUriForFile(MainActivity.this, getApplicationContext().getPackageName() + ".provider", photoFile));
 //
 //                    //takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, FileProvider.getUriForFile(MainActivity.this, BuildConfig.APPLICATION_ID + ".provider", photoFile));
 //                    //takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, Uri.fromFile(photoFile));
 //                    //takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, getUriFromPath(MainActivity.this, mCameraPhotoPath));
+//
+//                    mCameraPhotoPath = "file:" + photoFile.getAbsolutePath();
+//                    takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT,
+//                            Uri.fromFile(photoFile));
 //                } else {
 //                    takePictureIntent = null;
 //                }
@@ -447,12 +467,35 @@ public class MainActivity extends AppCompatActivity {
 //            chooserIntent.putExtra(Intent.EXTRA_INITIAL_INTENTS, intentArray);
 //
 //            startActivityForResult(chooserIntent, FILECHOOSER_RESULTCODE);
+//
+//            return true;
+//        }
+
+        public boolean onShowFileChooser(WebView webView, ValueCallback<Uri[]> filePathCallback, FileChooserParams fileChooserParams) {
+            // make sure there is no existing message
+            if (mFilePathCallback != null) {
+                mFilePathCallback.onReceiveValue(null);
+                mFilePathCallback = null;
+            }
+
+            mFilePathCallback = filePathCallback;
+
+            Intent intent = fileChooserParams.createIntent();
+            try {
+                startActivityForResult(intent, FILECHOOSER_RESULTCODE);
+            } catch (ActivityNotFoundException e) {
+                mFilePathCallback = null;
+                Toast.makeText(MainActivity.this, "Cannot open file chooser", Toast.LENGTH_LONG).show();
+                return false;
+            }
 
             return true;
         }
 
+
         // openFileChooser for Android 3.0+
-        public void openFileChooser(ValueCallback<Uri> uploadMsg, String acceptType) {
+//        public void openFileChooser(ValueCallback<Uri> uploadMsg, String acceptType) {
+//            Log.e("arsen", "openFileChooser: ");
 //            mUploadMessage = uploadMsg;
 //            // Create AndroidExampleFolder at sdcard
 //
@@ -499,22 +542,22 @@ public class MainActivity extends AppCompatActivity {
 //
 //            // On select image call onActivityResult method of activity
 //            startActivityForResult(chooserIntent, FILECHOOSER_RESULTCODE);
-        }
-
-        // openFileChooser for Android < 3.0
-        public void openFileChooser(ValueCallback<Uri> uploadMsg) {
-            openFileChooser(uploadMsg, "");
-        }
-
-        //openFileChooser for other Android versions
-        public void openFileChooser(ValueCallback<Uri> uploadMsg,
-                                    String acceptType,
-                                    String capture) {
-            openFileChooser(uploadMsg, acceptType);
-        }
-
-        @Override
-        public boolean onJsBeforeUnload(WebView view, String url, String message, final JsResult result) {
+//        }
+//
+//        // openFileChooser for Android < 3.0
+//        public void openFileChooser(ValueCallback<Uri> uploadMsg) {
+//            openFileChooser(uploadMsg, "");
+//        }
+//
+//        //openFileChooser for other Android versions
+//        public void openFileChooser(ValueCallback<Uri> uploadMsg,
+//                                    String acceptType,
+//                                    String capture) {
+//            openFileChooser(uploadMsg, acceptType);
+//        }
+//
+//        @Override
+//        public boolean onJsBeforeUnload(WebView view, String url, String message, final JsResult result) {
 //            new AlertDialog.Builder(MainActivity.this, R.style.AlertDialogTheme)
 //                    .setTitle(R.string.back_dialog_title)
 //                    .setMessage(message)
@@ -542,32 +585,37 @@ public class MainActivity extends AppCompatActivity {
 //                    })
 //                    .create()
 //                    .show();
-
-            return true;
-        }
+//
+//            return true;
+//        }
     }
 
     private class WebViewDownloadListener implements DownloadListener {
 
         @Override
         public void onDownloadStart(String url, String userAgent, String contentDisposition, String mimeType, long contentLength) {
-            DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
+            Log.e("arsen", "onDownloadStart: "+url+" "+mimeType);
+            if (!url.endsWith(".pdf") && !url.endsWith(".apk") && !url.endsWith(".zip")) {
+                mWebView.loadUrl(JavaScriptInterface.getBase64StringFromBlobUrl(url));
+            }else {
+                DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
+                request.setMimeType(mimeType);
+                //------------------------COOKIE!!------------------------
+                String cookies = CookieManager.getInstance().getCookie(url);
+                request.addRequestHeader("cookie", cookies);
+                //------------------------COOKIE!!------------------------
+                request.addRequestHeader("User-Agent", userAgent);
+                request.setDescription("Downloading file...");
+                request.setTitle(URLUtil.guessFileName(url, contentDisposition, mimeType));
+                request.allowScanningByMediaScanner();
+                request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+                request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, URLUtil.guessFileName(url, contentDisposition, mimeType));
+                DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+                dm.enqueue(request);
 
-            request.setMimeType(mimeType);
-            //------------------------COOKIE!!------------------------
-            String cookies = CookieManager.getInstance().getCookie(url);
-            request.addRequestHeader("cookie", cookies);
-            //------------------------COOKIE!!------------------------
-            request.addRequestHeader("User-Agent", userAgent);
-            request.setDescription("Downloading file...");
-            request.setTitle(URLUtil.guessFileName(url, contentDisposition, mimeType));
-            request.allowScanningByMediaScanner();
-            request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-            request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, URLUtil.guessFileName(url, contentDisposition, mimeType));
-            DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
-            dm.enqueue(request);
+                Toast.makeText(getApplicationContext(), "Downloading File", Toast.LENGTH_LONG).show();
+            }
 
-            Toast.makeText(getApplicationContext(), "Downloading File", Toast.LENGTH_LONG).show();
         }
     }
 

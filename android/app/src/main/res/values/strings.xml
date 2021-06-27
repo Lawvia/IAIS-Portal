@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">IAIS Portal</string>
+    <string name="image_chooser">Image Chooser</string>
+    <string name="back_dialog_title">Back Confirmation</string>
 </resources>

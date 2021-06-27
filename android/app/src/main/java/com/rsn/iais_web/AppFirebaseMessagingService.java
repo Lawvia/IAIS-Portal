@@ -62,50 +62,10 @@ public class AppFirebaseMessagingService extends FirebaseMessagingService {
 
     @Override
     public void onMessageReceived(@NonNull RemoteMessage remoteMessage) {
-        Log.e("arsen", "onMessageReceived: "+remoteMessage);
+        Log.e("arsen", "onMessageReceived: "+remoteMessage.getNotification().getTitle());
 
-        if (remoteMessage.getData().size() > 0) {
 
-            final Map<String, String> fcmData = remoteMessage.getData();
-            String notif_picture = fcmData.get("notif_picture");
-            if (notif_picture != null && !notif_picture.isEmpty()) {
-
-                // Download the picture and decode into bitmap
-                Glide.with(this)
-                //GlideApp.with(this)
-                        .asBitmap()
-                        .load(notif_picture.toString())
-                        .diskCacheStrategy(DiskCacheStrategy.NONE)
-                        .skipMemoryCache(true)
-                        .into(new CustomTarget<Bitmap>() {
-                            @Override
-                            public void onResourceReady(@NonNull Bitmap resource, @Nullable Transition<? super Bitmap> transition) {
-//                                if (PfsApplication.isRunningBackground()) {
-//                                    AppLogger.writeDebug("BitmapTarget PFS application is in background");
-//                                    showNotification(fcmData.get("notif_title"), fcmData.get("notif_message"), fcmData.get("link_url"), resource);
-//                                } else {
-//                                    AppLogger.writeDebug("BitmapTarget PFS application is in foreground");
-                                    showNotification(fcmData.get("notif_title"), fcmData.get("notif_message"), fcmData.get("link_url"), resource);
-//                                }
-                            }
-
-                            @Override
-                            public void onLoadCleared(@Nullable Drawable placeholder) {
-//                                AppLogger.writeDebug("BitmapTarget onLoadCleared");
-                            }
-
-                            @Override
-                            public void onLoadFailed(@Nullable Drawable errorDrawable) {
-//                                AppLogger.writeDebug("BitmapTarget onLoadFailed");
-                                super.onLoadFailed(errorDrawable);
-                            }
-                        });
-            } else {
-//                AppLogger.writeDebug("notif_picture empty or null");
-            }
-        } else {
-//            AppLogger.writeDebug("No data payload");
-        }
+        showNotification(remoteMessage.getNotification().getTitle(), remoteMessage.getNotification().getBody(), "http://202.157.177.195:8090/members/lawviapples@gmail.com/notification/invitation", null);
 
         //super.onMessageReceived(remoteMessage);
     }
@@ -135,31 +95,33 @@ public class AppFirebaseMessagingService extends FirebaseMessagingService {
         notificationIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
 
         PendingIntent pendingIntent;
-        if (notificationLink.contains(END_POINT)){ //url goes to pfs, open app directly
-            pendingIntent = PendingIntent.getActivity(this, 0 /* Request code */, notificationIntent, PendingIntent.FLAG_ONE_SHOT);
-        }else{
+//        if (notificationLink.contains(END_POINT)){ //url goes to pfs, open app directly
+//            Log.e("arsen", "showNotification: ke OG");
+//            pendingIntent = PendingIntent.getActivity(this, 0 /* Request code */, notificationIntent, PendingIntent.FLAG_ONE_SHOT);
+//        }else{
             //url goes to external source
-            pendingIntent = PendingIntent.getActivity(this, 0 /* Request code */, intent, PendingIntent.FLAG_ONE_SHOT);
-        }
+            Log.e("arsen", "showNotification: ke ext");
+            pendingIntent = PendingIntent.getActivity(this, 0 /* Request code */, notificationIntent, PendingIntent.FLAG_ONE_SHOT);
+//        }
 
 
         // Create custom contentView
         RemoteViews rvNotification = new RemoteViews(getPackageName(), R.layout.notification_content_view);
-        rvNotification.setImageViewBitmap(R.id.iv_notification, notificationPicture);
-        String shorten = Html.fromHtml(notificationMessage).toString();
-        rvNotification.setTextViewText(R.id.notif_text, shorten);
+//        rvNotification.setImageViewBitmap(R.id.iv_notification, notificationPicture);
+//        String shorten = Html.fromHtml(notificationMessage).toString();
+//        rvNotification.setTextViewText(R.id.notif_text, shorten);
 
         String channelId = "fcm_default_channel";
         Uri defaultSoundUri= RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
         NotificationCompat.Builder notificationBuilder =
                 new NotificationCompat.Builder(this, channelId)
-                        .setSmallIcon(R.drawable.ic_notification)
+                        .setSmallIcon(R.mipmap.ic_launcher_foreground)
                         //.setSmallIcon(R.drawable.ic_notification)
-//                        .setContentTitle("tes title")
-//                        .setContentText("tes asdad")
+                        .setContentTitle(notificationTitle)
+                        .setContentText(notificationMessage)
                         //.setStyle(new NotificationCompat.DecoratedCustomViewStyle())
-                        .setCustomContentView(rvNotification)
-                        .setCustomBigContentView(rvNotification)
+//                        .setCustomContentView(rvNotification)
+//                        .setCustomBigContentView(rvNotification)
                         .setAutoCancel(true)
                         .setSound(defaultSoundUri)
                         .setContentIntent(pendingIntent);

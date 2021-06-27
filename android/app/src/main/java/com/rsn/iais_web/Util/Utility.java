@@ -67,4 +67,54 @@ public class Utility {
                 }
         );
     }
+
+    public static void updateVersiApp(String token, String ver_app, Context context) {
+        // TODO: Implement this method to send token to your app server.
+        //insertUpdateFcmToken
+        ServerApi.updateVersiApp(
+                token,
+                ver_app,
+                context,
+                new Response.Listener<JSONObject>() {
+                    @Override
+                    public void onResponse(JSONObject response) {
+                        Log.e("arsen", "LoginActivity updateVersiApp onResponse:" +
+                                "\n\t" + response.toString() + "\n_");
+                        try {
+                            int error = response.getInt("error");
+                            if (error == 0) {
+                                //success insert or update fcm
+                            }else {
+                                Log.e("Sales", "onResponse: fail");
+                            }
+                        } catch (JSONException e) {
+                            Log.e("Sales", "onResponse: fail try catch");
+                        }
+                    }
+                },
+                new Response.ErrorListener() {
+                    @Override
+                    public void onErrorResponse(VolleyError error) {
+                        Log.e("arsen", "LoginActivity updateVersiApp onErrorResponse:" +
+                                "\n\t" + error.toString() + "\n_");
+                        if (error.networkResponse != null) {
+                            try {
+                                String body = new String(error.networkResponse.data,"UTF-8");
+                                JSONObject jsonObj = new JSONObject(body);
+                                Log.d("Sales", "LoginActivity insertFcmToken onErrorResponse: " + error.toString() +
+                                        "\n\theader status: " + error.networkResponse.statusCode +
+                                        "\n\tbody: " + body +
+                                        "\n\tbody error: " + jsonObj.getString("error") +
+                                        "\n\tbody message: " + jsonObj.getString("message")
+                                );
+                            } catch (UnsupportedEncodingException e) {
+                                e.printStackTrace();
+                            } catch (JSONException e) {
+                                e.printStackTrace();
+                            }
+                        }
+                    }
+                }
+        );
+    }
 }

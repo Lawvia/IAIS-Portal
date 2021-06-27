@@ -197,6 +197,7 @@ public class PolytronWebViewClient extends WebViewClient {
                     }
                 }
 
+                //whatsapp
                 if (url != null && url.contains("https://api.whatsapp.com/send")) {
                     view.reload();
                     Intent sendIntent = new Intent("android.intent.action.MAIN");
@@ -209,6 +210,24 @@ public class PolytronWebViewClient extends WebViewClient {
                     } else {
                         Intent intent = new Intent(Intent.ACTION_VIEW);
                         intent.setData(Uri.parse("market://details?id=com.whatsapp"));
+                        mContext.startActivity(intent);
+                        return true;
+                    }
+                }
+
+                //zoom
+                if (url != null && url.contains("https://zoom.us")) {
+                    view.reload();
+                    Intent sendIntent = new Intent("android.intent.action.MAIN");
+                    sendIntent.setAction(Intent.ACTION_VIEW);
+                    sendIntent.setPackage("us.zoom.videomeetings");
+                    sendIntent.setData(Uri.parse(url));
+                    if (sendIntent.resolveActivity(mContext.getPackageManager()) != null) {
+                        mContext.startActivity(sendIntent);
+                        return true;
+                    } else {
+                        Intent intent = new Intent(Intent.ACTION_VIEW);
+                        intent.setData(Uri.parse("market://details?id=us.zoom.videomeetings"));
                         mContext.startActivity(intent);
                         return true;
                     }

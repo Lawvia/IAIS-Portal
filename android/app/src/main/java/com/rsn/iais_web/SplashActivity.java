@@ -12,6 +12,7 @@ import android.os.Handler;
 //import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.DisplayMetrics;
+import android.util.Log;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
@@ -30,6 +31,7 @@ public class SplashActivity extends AppCompatActivity {
 
     private final int SPLASH_DISPLAY_LENGTH = 5000;
     private boolean cancelRunnable = false;
+    private boolean fromNotification = false;
 
     private Handler handler = new Handler();
     private Runnable splash = new Runnable() {
@@ -37,6 +39,8 @@ public class SplashActivity extends AppCompatActivity {
         public void run() {
             if (!cancelRunnable) {
                 Intent mainIntent = new Intent(SplashActivity.this, MainActivity.class);
+                if (fromNotification) mainIntent.putExtra("fromNotification", true);
+                else mainIntent.putExtra("fromNotification", false);
                 mainIntent.setAction(Intent.ACTION_MAIN);
                 startActivity(mainIntent);
             }
@@ -49,6 +53,11 @@ public class SplashActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        Bundle b = getIntent().getExtras();
+        Log.e("arsen", "splash: "+(b == null));
+        if (b != null) fromNotification = true;
+        else fromNotification = false;
 
         DisplayMetrics metrics = getResources().getDisplayMetrics();
 

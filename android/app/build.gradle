@@ -9,8 +9,8 @@ android {
         applicationId "com.rsn.iais_web"
         minSdkVersion 21
         targetSdkVersion 30
-        versionCode 2
-        versionName "1.1"
+        versionCode 8
+        versionName "0.6"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -25,7 +25,7 @@ android {
     flavorDimensions "environment"
     productFlavors {
         development {
-            buildConfigField "String", "END_POINT", "\"http://202.157.177.195:8090/\""
+            buildConfigField "String", "END_POINT", "\"https://core.indonesiaai.org/\""
         }
         staging {
             buildConfigField "String", "END_POINT", "\"https://pfs.staging.polytron.angkasa.id/store\""

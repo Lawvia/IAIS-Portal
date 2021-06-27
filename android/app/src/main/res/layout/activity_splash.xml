@@ -54,7 +54,7 @@
         android:layout_margin="22dp"
 
         android:textColor="#000"
-        android:text="Version 0.3"
+        android:text="Version 0.6"
         android:textSize="16sp"/>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
